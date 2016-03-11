@@ -1,0 +1,8 @@
+import socket
+soket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+HOST = "localhost"
+PORT = 21#açık port
+soket.bind((HOST,PORT))
+print("%s : %d server basla." % (HOST, PORT))
+print("Kullanici bekleniyor")
+soket.listen(1)#1 adet kullanıcı tanımlandı
