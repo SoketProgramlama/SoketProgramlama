@@ -1,0 +1,13 @@
+from socket import *
+
+from Tools.scripts.treesync import raw_input
+
+sunucuAd = 'localhost'
+sunucuPort = 20605
+istemciSocket = socket(AF_INET, SOCK_DGRAM) #datagram
+mesaj = raw_input('Kucuk harfle bir cumle yaz:')
+istemciSocket.sendto()
+istemciSocket.sendto(mesaj, (sunucuAd, sunucuPort))
+yeniMesaj, sunucuAdres = istemciSocket.recvfrom(4096)
+print (yeniMesaj)
+istemciSocket.close()
