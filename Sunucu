@@ -1,0 +1,14 @@
+from socket import *
+Host = 'localhost'
+Port = 20605
+sunucuSocket = socket(AF_INET, SOCK_DGRAM)
+sunucuSocket.bind((Host,Port))
+print('Sunucu hazır')
+while 1:
+    mesaj, istemciAdres = sunucuSocket.recvfrom(4096)
+    if mesaj == 'omernazmiye':
+        break
+    yeniMesaj = mesaj.upper()
+    sunucuSocket.sendto(yeniMesaj,istemciAdres)
+sunucuSocket.close()
+print('Sunucu kapandı.')
