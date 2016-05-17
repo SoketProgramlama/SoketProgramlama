@@ -1,0 +1,99 @@
+# -*- coding: cp1254 -*-
+import sys
+from PyQt4.QtCore import *
+from PyQt4.QtGui import *
+from PyQt4.QtNetwork import *
+
+PORT = 9999
+SIZEOF_UINT16 = 2
+
+class Form(QDialog):
+
+    def __init__(self, parent=None):
+        super(Form, self).__init__(parent)
+
+        # Soket Başlat
+        self.socket = QTcpSocket()
+        # Veri Giriş Çıkış ayarla
+        self.nextBlockSize = 0
+        self.request = None
+        # Componentleri oluştur
+        self.browser = QTextBrowser()
+        self.lineedit = QLineEdit("Mesajinizi Yaziniz")
+        self.lineedit.selectAll()
+        self.connectButton = QPushButton("Baglan")
+        self.connectButton.setDefault(False)
+        self.connectButton.setEnabled(True)
+        layout = QVBoxLayout()
+        layout.addWidget(self.browser)
+        layout.addWidget(self.lineedit)
+        layout.addWidget(self.connectButton)
+        self.setLayout(layout)
+        self.lineedit.setFocus()
+        self.lineedit.returnPressed.connect(self.sendToServer)
+        # baglanti buton ayarlari
+
+        self.connectButton.released.connect(self.connectToServer)
+
+        self.setWindowTitle("istemci2")
+
+        # bağlanma
+        self.socket.readyRead.connect(self.readFromServer)
+        self.socket.disconnected.connect(self.serverHasStopped)
+        self.connect(self.socket,
+                     SIGNAL("error(QAbstractSocket::SocketError)"),
+                     self.serverHasError)
+
+    # arayüz güncellemesi
+    def updateUi(self, text):
+        self.browser.append(text)
+
+    # server bağlanma
+    def connectToServer(self):
+        self.connectButton.setEnabled(False)
+        print("Server Baglaniliyor Lutfen Bekleyin")
+        self.socket.connectToHost("localhost", PORT)
+
+    # Server Veri Gonderme
+    def sendToServer(self):
+        self.request = QByteArray()
+        stream = QDataStream(self.request, QIODevice.WriteOnly)
+        stream.setVersion(QDataStream.Qt_4_2)
+        stream.writeUInt16(0)
+        stream.writeQString(self.lineedit.text())#veri gönderim
+        stream.device().seek(0)
+        stream.writeUInt16(self.request.size() - SIZEOF_UINT16)
+        self.socket.write(self.request)
+        self.nextBlockSize = 0
+        self.request = None
+        self.lineedit.setText("")
+
+    # Server okuma ve text güncelleme
+    def readFromServer(self):
+        stream = QDataStream(self.socket)
+        stream.setVersion(QDataStream.Qt_4_2)
+
+        while True:
+            if self.nextBlockSize == 0:
+                if self.socket.bytesAvailable() < SIZEOF_UINT16:
+                    break
+                self.nextBlockSize = stream.readUInt16()
+            if self.socket.bytesAvailable() < self.nextBlockSize:
+                break
+            textFromServer = stream.readQString()
+            self.updateUi(textFromServer)
+            self.nextBlockSize = 0
+
+    def serverHasStopped(self):
+        self.socket.close()
+
+    def serverHasError(self):
+        self.updateUi("Error: {}".format(
+                self.socket.errorString()))
+        self.socket.close()
+
+
+app = QApplication(sys.argv)
+form = Form()
+form.show()
+app.exec_()
