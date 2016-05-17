@@ -1,0 +1,147 @@
+# -*- coding: cp1254 -*-
+import sys
+import socket
+from PyQt4.QtCore import *
+from PyQt4.QtGui import *
+from PyQt4.QtNetwork import *
+
+
+PORT = 9999
+HOST="localhost"
+SIZEOF_UINT16 = 2
+
+
+
+
+class Thread(QThread):
+
+    def __init__(self, socketId, parent):
+        super(Thread, self).__init__(parent)
+        self.socketId = socketId
+
+
+
+    def run(self):
+        self.socket = QTcpSocket()
+
+        if not self.socket.setSocketDescriptor(self.socketId):
+            self.emit(SIGNAL("error(int)"), socket.error())
+            return
+
+        while self.socket.state() == QAbstractSocket.ConnectedState:
+            nextBlockSize = 0
+            stream = QDataStream(self.socket)
+            stream.setVersion(QDataStream.Qt_4_2)
+            if (self.socket.waitForReadyRead(-1) and
+                self.socket.bytesAvailable() >= SIZEOF_UINT16):
+                nextBlockSize = stream.readUInt16()
+            else:
+                self.sendError("istemcinin istegi okunamiyor")
+                return
+            if self.socket.bytesAvailable() < nextBlockSize:
+                if (not self.socket.waitForReadyRead(-1) or
+                    self.socket.bytesAvailable() < nextBlockSize):
+                    self.sendError("istemcinin verisi okunamiyor")
+                    return
+
+
+
+
+            textFromClient = stream.readQString()
+            a=textFromClient[len(textFromClient)-1]
+            #server=ServerDlg()#ServerDlg classdan nesne tanımladık
+            #ServerDlg().lineedit.setText("")
+            #ServerDlg().browser.append(textFromClient)
+
+
+            if (textFromClient):
+                textToClient="Merhaba"
+                self.sendReply(textToClient)
+
+
+
+
+
+
+    def updateUi(self, text):
+        ServerDlg().browser.append(text)
+
+    def sendError(self, msg):
+        reply = QByteArray()
+        stream = QDataStream(reply, QIODevice.WriteOnly)
+        stream.setVersion(QDataStream.Qt_4_2)
+        stream.writeUInt16(0)
+        stream.writeQString("HATA")
+        stream.writeQString(msg)
+        stream.device().seek(0)
+        stream.writeUInt16(reply.size() - SIZEOF_UINT16)
+        self.socket.write(reply)
+
+    def sendReply(self, text):
+
+        reply = QByteArray()
+        stream = QDataStream(reply, QIODevice.WriteOnly)
+        stream.setVersion(QDataStream.Qt_4_2)
+        stream.writeUInt16(0)
+        stream.writeQString(text)
+        stream.setDevice(QIODevice.connect()).seek(0)
+
+        stream.writeUInt16(reply.size() - SIZEOF_UINT16)
+        self.socket.write(reply)
+
+
+
+class TcpServer(QTcpServer):
+
+    def __init__(self, parent=None):
+        super(TcpServer, self).__init__(parent)
+
+    def incomingConnection(self, socketId):
+        self.thread = Thread(socketId, self)
+        self.thread.start()
+
+
+class ServerDlg(QDialog):
+
+    def __init__(self, parent=None):
+        super(ServerDlg, self).__init__(parent)
+        self.browser = QTextBrowser()
+        self.lineedit = QLineEdit("Mesajinizi Yaziniz")
+        self.lineedit.selectAll()
+        self.cancel = QPushButton("Server kapat")
+        self.cancel.setDefault(False)
+        self.cancel.setEnabled(True)
+        self.gonder=QPushButton("Gönder")
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.browser)
+        layout.addWidget(self.lineedit)
+        layout.addWidget(self.cancel)
+        layout.addWidget(self.gonder)
+        self.setLayout(layout)
+        self.lineedit.setFocus()
+        self.tcpServer = TcpServer(self)
+        self.tcpServer.listen(QHostAddress(HOST), PORT)
+        self.tcpServer.incomingConnection(socketId=PORT)
+        #self.tcpServer.listen(5)
+        #soket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        #soket.bind(("localhost",PORT))
+        #soket.listen(2)
+        #self.tcpServer.listen()
+
+        #self.browser.append(self.lineedit.text())#text içinde yazanı browser yazdırdık
+        #self.lineedit.returnPressed.connect(self.sendToServer)
+        self.connect(self.gonder,SIGNAL("pressed()"),self.yaz)
+        self.connect(self.cancel, SIGNAL("pressed()"), self.close)
+        text=self.lineedit.text();
+
+        self.setWindowTitle("Server")
+    def yaz(self):
+        self.browser.append(self.lineedit.text())
+
+
+app = QApplication(sys.argv)
+form = ServerDlg()
+form.show()
+form.move(0, 0)
+app.exec_()
